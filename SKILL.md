@@ -69,13 +69,14 @@ description: AI短剧/概念片全流程编排母 skill。当用户要"做一条
 
 ### STEP 4：视频（调 pixmax-cli）
 - 每段：首帧（资产图或尾帧图生图）→ `video image-to-video` 单图模式
-- 参数：`--model PIXDANCE_2_MINI --resolution 720P --aspect-ratio 16:9 --duration 15 --include-audio --no-wait`（**720P 起步，480P 是最低档会糊**；更高档 SUPER_1080P/SUPER_4K）
+- 参数：`--model PIXDANCE_2_MINI --resolution 720P --aspect-ratio 16:9 --duration 15 --include-audio --no-wait`（**720P 清晰但积分贵，480P 省积分但略糊，按积分权衡**；更高档 SUPER_1080P/SUPER_4K）
 - 段间接力：下载本段 → 抽尾帧 → 上传 → 图生图派生下段首帧
 - 进度轮询：`pixmax --json tasks list`（nodeUuid 匹配）
-- **画布五层平铺拓扑**（一镜一镜的短片）：`母板(9:16) → 场景空间底图(16:9)+道具(3:4) → 设定板(16:9) → 关键帧(16:9，挂母板+场景) → 视频(720P，挂关键帧+母板)`
+- **画布五层平铺拓扑**（一镜一镜的短片）：`母板(9:16) → 场景空间底图(16:9)+道具(3:4) → 设定板(16:9) → 关键帧(16:9，挂母板+场景) → 视频(挂关键帧+场景图+母板)`
 - **铺节点不花钱，花钱是点生成**：AI 先铺全部节点连好线，用户按依赖顺序点生成；母板先验收画风，再点下游（锁脸才锁得对）
 - **视频提示词走 ai-film-general-skill（AJ）的 16 项镜头合同四段式**（【素材描述】【一句话概括】【画面内容描述】【全局补充】），【画面内容描述】占一半以上：首帧/空间/眼线/地标距离/光学可见结果/动作时序/物理/主光/终态
-- 关键帧/视频入参铁律：人物大到能看清脸才挂母板锁脸；**大全景/成点镜头人物是色点，不挂母板只写颜色词**（挂母板反而把人画大）；视频不重复挂场景图（空间已烘焙进关键帧首帧）
+- 关键帧/视频入参铁律：人物大到能看清脸才挂母板锁脸；**大全景/成点镜头人物是色点，不挂母板只写颜色词**（挂母板反而把人画大）
+- **视频三层入参 = 关键帧（锁起点画面）+ 场景图（锁空间，防运动时背景崩）+ 母板（锁脸，防运动时脸漂）**。关键帧首帧只锁"起点构图"，视频是要动的，镜头推进/人物动作时背景空间易崩，场景图不能省（2026-10-19 修正：之前"场景已烘焙进关键帧不用挂"是错的）
 
 ### STEP 5：合成
 - 保留原声 concat；需要转场用 xfade；音轨统一用真实素材
@@ -111,7 +112,7 @@ $PIX --json image generate "<名>" --model DOUBAO_SEEDREAM_5_PRO \
 $PIX --json image edit "<名>" --image-node <上游节点> --model DOUBAO_SEEDREAM_5_PRO \
   --prompt "保持参考图中同一个人的脸、五官、发型、体型完全不变：<外貌>。将背景换成<场景>。<姿态>。<构图>。16:9横构图。" \
   --resolution 2K --aspect-ratio 16:9 --run --no-wait
-# 视频段（720P 起步，480P 会糊）
+# 视频段（720P 清晰/480P 省积分，按积分选）
 $PIX --json video image-to-video "<段N>" --image-node <首帧节点> \
   --model PIXDANCE_2_MINI --resolution 720P --aspect-ratio 16:9 --duration 15 \
   --include-audio --no-wait --prompt "<动词链>"
@@ -126,7 +127,7 @@ ffmpeg -y -f concat -safe 0 -i list.txt -c copy merged.mp4
 
 | 坑 | 症状 | 正解 |
 |---|---|---|
-| 分辨率 | 480P 糊 | **720P 起步**，更高 SUPER_1080P / SUPER_4K |
+| 分辨率 | 480P 略糊 | **720P 清晰但贵，480P 省积分**；按积分权衡，更高 SUPER_1080P / SUPER_4K |
 | 裸 `canvas node create` | 撞 409 revision | 用高层命令 **`image generate`（文生图）/ `image edit`（图生图锁脸）**，自动处理 baseRevision |
 | 多参考连线 | image edit 只支持单参考 | 关键帧/视频用 `node create --left <uuid> --left <uuid>` 多参考 |
 | `node delete` 命令 | 仍撞 409 | 走 `canvas batch` delete 字段 + `baseRevision`（每次提交前 `canvas get` 刷新） |
