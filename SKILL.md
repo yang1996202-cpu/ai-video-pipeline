@@ -1,22 +1,29 @@
 ---
 name: ai-video-pipeline
-description: AI短剧/概念片全流程编排母 skill。当用户要"做一条 AI 视频/短剧/概念片/预告片"、要求"保持人物一致性""首尾帧接力""按剧本出片"时触发。职责：编排四个子能力——①剧本（stc-* 救猫咪节拍表 / shanyin-writer-2-recon）②角色与道具资产（chaoge-assets-trial 的 P0A-P2 流程）③分镜（shanyin-storyboard-2-recon 山音九列）④视频生成（pixmax-cli + Seedance/Wan）⑤合成精剪与配音混音（ffmpeg trim/concat + 三层音轨 amix），并强制套用"资产台账 + 锁脸接力 + 保留原声 + 画风锚定 + 空间底图"等一致性纪律。本 skill 是编排层，不重写子 skill 的方法论，只负责阶段衔接、台账维护和纪律执行。
+description: AI短剧/概念片全流程编排母 skill。当用户要"做一条 AI 视频/短剧/概念片/预告片"、要求"保持人物一致性""首尾帧接力""按剧本出片"时触发。职责：**编排（调度）五个子 skill**——①剧本=救猫咪节拍表（stc-*，新片剧本默认）②角色与道具资产=chaoge-assets-trial（超哥：P0A十项解析+情绪曲线+创作基准+16字段角色母板+16:9角色设定板+3:4道具）③场景=ai-film-general-skill（AJ 空间底图法）④分镜=shanyin-director-1-0（新片）/shanyin-storyboard-2-recon（快速迭代）⑤视频=pixmax-cli+ai-film 16项合同；⑥合成配音=ffmpeg。**本 skill 是编排层：每个阶段必须用 Skill tool 真实加载对应子 skill 并按其 SKILL.md 逐步执行，禁止凭记忆内联手写子 skill 的产出**（2026-10-19 黑盒测试教训：内联必然漂移，如母板缺字段/漏角色设定板）。强制纪律：资产台账+锁脸接力+画风锚定+空间底图+运镜强制+AI只铺节点不点生成。
 ---
 
 # AI 视频生产管线（编排母 skill）
 
 ## 角色定位
 
-本 skill **不是替代**子 skill，而是**编排**它们。四个子能力各有专长：
+本 skill **不是替代**子 skill，而是**编排**它们。各阶段子 skill 与产出：
 
 | 阶段 | 子 skill | 产出 |
 |---|---|---|
-| 1. 剧本 | `stc-*` 系列（救猫咪节拍表，本项目实际用）或 `shanyin-writer-2-recon` | 定稿剧本（角色表+场景表+叙事节点） |
-| 2. 资产 | `chaoge-assets-trial`（超哥，人物母板）+ ai-film（AJ，场景空间底图） | 角色母板（9:16 确认稿）+ 场景空间底图 + 道具母板 |
-| 3. 分镜 | `shanyin-storyboard-2-recon`（山音九列） | 分镜表（每镜景别/机位/运镜/首帧来源/画面描述） |
-| 4. 视频 | `pixmax-cli`（PIXDANCE_2_MINI / WAN3_0）+ ai-film（AJ，16项合同提示词） | 分段视频 + 合成成片 |
+| 1. 剧本 | `stc-*` 系列（救猫咪节拍表，新片默认）或 `shanyin-writer-2-recon` | 定稿剧本（角色表+场景表+叙事节点） |
+| 2. 角色与道具 | `chaoge-assets-trial`（超哥：P0A 十项解析+情绪曲线+P1 创作基准+P2 16字段角色母板+16:9 角色设定板+3:4 道具产品照） | 角色母板/设定板/道具母板 |
+| 2b. 场景 | `ai-film-general-skill`（AJ 空间底图法） | 场景空间底图 16:9 |
+| 3. 分镜 | `shanyin-director-1-0`（新片）/ `shanyin-storyboard-2-recon`（快速迭代） | 九列分镜表（逐镜运镜） |
+| 4. 视频 | `pixmax-cli`（**PIXDANCE_2_MINI 默认**）+ `ai-film-general-skill`（16项合同提示词） | 分段视频 |
+| 5-6. 合成配音 | ffmpeg（trim/concat + 三层音轨 amix） | 成片 |
 
 **硬规则**：进入下一阶段前，上一阶段必须**定稿**（用户确认）。资产未定稿不得进分镜，分镜未定稿不得进视频。
+
+**⚠️ 编排铁律（2026-10-19 黑盒测试教训，最高优先级）**：
+1. **每个阶段必须用 Skill tool 真实加载对应子 skill，按其 SKILL.md 逐步执行**——"调 xxx"不能只在文本里写路由，必须实际加载。禁止凭记忆内联手写子 skill 的产出（母板提示词、分镜表、合同提示词等）。内联必然漂移：实测漏掉超哥 16 字段中的 8 个、整个 16:9 角色设定板（三视图）缺失。
+2. **本 skill 不产出内容，只产出编排**：阶段衔接、参数基准（照抄跑通节点）、台账维护、纪律执行。内容全部来自子 skill。
+3. 子 skill 有确认门槛的（如超哥每批验收），照它的节奏走，编排层不越权跳步。
 
 ## 五条一致性纪律（贯穿全程，违反必翻车）
 
@@ -30,7 +37,7 @@ description: AI短剧/概念片全流程编排母 skill。当用户要"做一条
 - 视频段之间：上一段尾帧 → `ffmpeg -sseof -0.5` 抽帧 → 上传回 Pixmax → `image edit` 图生图（尾帧的脸 + 下一段场景/服装）→ 作为下一段首帧
 - ⚠️ ~~禁用 referModel=referToVideo 双图入参~~（旧《山货》项目教训，已被 2026-10-19 案例9 推翻：**多参考视频必须用 referToVideo 全能参考**，当年失败的真因是旧模型对双图组合的版权过滤，现行 PIXDANCE_2_5 + 多参考已实测跑通 22 镜。保留此行仅作历史记录，**以案例9 为准**）
 - ⚠️ **画布 revision 冲突时**用官方 `video image-to-video` 命令（自动处理 revision），不用裸 `canvas node create`
-- ⚠️ **视频多参考必须用 `referModel=referToVideo`（全能参考）**，不要用 `imageToVideo`（单图模式）硬塞多参考——后者配 3 参考实测稳定 FAILED 且无报错细节（2026-10-19，镜2/8 三连挂）。本片跑通的正式参数：`model=PIXDANCE_2_5` + `referModel=referToVideo` + `resolution=480P` + `aspectRatio=adaptive` + `includeAudio=true`，上游挂 关键帧+各角色母板+场景图（镜2 实测 4 参考成功）。
+- ⚠️ **视频多参考必须用 `referModel=referToVideo`（全能参考）**，不要用 `imageToVideo`（单图模式）硬塞多参考——后者配 3 参考实测稳定 FAILED 且无报错细节（2026-10-19，镜2/8 三连挂）。**模型默认 `PIXDANCE_2_MINI`（2.0 mini）+ 480P 省积分**（用户标准；`PIXDANCE_2_5` 为历史遗留，积分消耗高一个量级，勿作默认）。上游挂 关键帧+各角色母板+场景图。
 - **分工铁律：AI 只负责铺节点/连线/入参/提示词，生成一律由用户在画布点击**——`node create` 带 `--run` 会直接烧积分触发生成，未经用户明确要求禁止使用（2026-10-19 越权教训）。
 
 ### 纪律 3：保留原声
@@ -79,9 +86,9 @@ description: AI短剧/概念片全流程编排母 skill。当用户要"做一条
 - 画面描述走动词链（"他掰开捕兽夹"✅），禁名词堆（"他蹲在草丛边"❌）
 - **分镜 skill 选路（2026-10-19 起）**：`shanyin-director-1-0`（山音导演大师1.0，用户验证过，含动作-反应12变体/70-30出彩法则/时长统计基准/Double Check三层）用于**新片分镜**；`shanyin-storyboard-2-recon` 轻量九列用于快速迭代。**无论用哪个，「备注」列必须逐镜写运镜**（v2 规范），留白镜显式标"刻意静止+微运动"。
 
-### STEP 4：视频（调 pixmax-cli）
+### STEP 4：视频（调 pixmax-cli + ai-film 16项合同）
 - 每段：首帧（资产图或尾帧图生图）→ `video image-to-video` 单图模式
-- 参数：`--model PIXDANCE_2_MINI --resolution 720P --aspect-ratio 16:9 --duration 15 --include-audio --no-wait`（**720P 清晰但积分贵，480P 省积分但略糊，按积分权衡**；更高档 SUPER_1080P/SUPER_4K）
+- 参数：`--model PIXDANCE_2_MINI --resolution 480P --aspect-ratio 16:9 --include-audio --no-wait`（**默认 2.0 mini + 480P 省积分**——用户标准；720P 清晰但积分贵按需升；**不要用 PIXDANCE_2_5**，那是历史遗留，积分消耗高一个量级）
 - 段间接力：下载本段 → 抽尾帧 → 上传 → 图生图派生下段首帧
 - 进度轮询：`pixmax --json tasks list`（nodeUuid 匹配）
 - **画布五层平铺拓扑**（一镜一镜的短片）：`母板(9:16) → 场景空间底图(16:9)+道具(3:4) → 设定板(16:9) → 关键帧(16:9，挂母板+场景) → 视频(挂关键帧+场景图+母板)`
@@ -157,9 +164,9 @@ $PIX --json image generate "<名>" --model DOUBAO_SEEDREAM_5_PRO \
 $PIX --json image edit "<名>" --image-node <上游节点> --model DOUBAO_SEEDREAM_5_PRO \
   --prompt "保持参考图中同一个人的脸、五官、发型、体型完全不变：<外貌>。将背景换成<场景>。<姿态>。<构图>。16:9横构图。" \
   --resolution 2K --aspect-ratio 16:9 --run --no-wait
-# 视频段（720P 清晰/480P 省积分，按积分选）
+# 视频段（默认 2.0 mini + 480P 省积分；多参考时画布节点用 referToVideo）
 $PIX --json video image-to-video "<段N>" --image-node <首帧节点> \
-  --model PIXDANCE_2_MINI --resolution 720P --aspect-ratio 16:9 --duration 15 \
+  --model PIXDANCE_2_MINI --resolution 480P --aspect-ratio 16:9 \
   --include-audio --no-wait --prompt "<动词链>"
 # 抽尾帧+上传
 ffmpeg -y -sseof -0.5 -i <段N.mp4> -frames:v 1 -q:v 2 <尾帧.png>
