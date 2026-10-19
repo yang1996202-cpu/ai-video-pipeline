@@ -28,7 +28,7 @@ description: AI短剧/概念片全流程编排母 skill。当用户要"做一条
 ### 纪律 2：锁脸接力
 - 角色基础版（R01）文生图定稿后，**所有换装/状态图必须 image edit 图生图继承 R01 的脸**，绝不用文生图重画第二张脸
 - 视频段之间：上一段尾帧 → `ffmpeg -sseof -0.5` 抽帧 → 上传回 Pixmax → `image edit` 图生图（尾帧的脸 + 下一段场景/服装）→ 作为下一段首帧
-- ⚠️ **禁用 `referModel=referToVideo` 双图入参**（人物立绘+场景图组合触发版权过滤 PolicyViolation，实测两次）
+- ⚠️ ~~禁用 referModel=referToVideo 双图入参~~（旧《山货》项目教训，已被 2026-10-19 案例9 推翻：**多参考视频必须用 referToVideo 全能参考**，当年失败的真因是旧模型对双图组合的版权过滤，现行 PIXDANCE_2_5 + 多参考已实测跑通 22 镜。保留此行仅作历史记录，**以案例9 为准**）
 - ⚠️ **画布 revision 冲突时**用官方 `video image-to-video` 命令（自动处理 revision），不用裸 `canvas node create`
 - ⚠️ **视频多参考必须用 `referModel=referToVideo`（全能参考）**，不要用 `imageToVideo`（单图模式）硬塞多参考——后者配 3 参考实测稳定 FAILED 且无报错细节（2026-10-19，镜2/8 三连挂）。本片跑通的正式参数：`model=PIXDANCE_2_5` + `referModel=referToVideo` + `resolution=480P` + `aspectRatio=adaptive` + `includeAudio=true`，上游挂 关键帧+各角色母板+场景图（镜2 实测 4 参考成功）。
 - **分工铁律：AI 只负责铺节点/连线/入参/提示词，生成一律由用户在画布点击**——`node create` 带 `--run` 会直接烧积分触发生成，未经用户明确要求禁止使用（2026-10-19 越权教训）。
