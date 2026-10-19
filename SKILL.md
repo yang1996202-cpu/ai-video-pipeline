@@ -30,7 +30,8 @@ description: AI短剧/概念片全流程编排母 skill。当用户要"做一条
 - 视频段之间：上一段尾帧 → `ffmpeg -sseof -0.5` 抽帧 → 上传回 Pixmax → `image edit` 图生图（尾帧的脸 + 下一段场景/服装）→ 作为下一段首帧
 - ⚠️ **禁用 `referModel=referToVideo` 双图入参**（人物立绘+场景图组合触发版权过滤 PolicyViolation，实测两次）
 - ⚠️ **画布 revision 冲突时**用官方 `video image-to-video` 命令（自动处理 revision），不用裸 `canvas node create`
-- ⚠️ **「关键帧+双母板」三参考当前（2026-10-19）服务端稳定失败**：本片镜2/8 用 `node create --left <关键帧> --left M1 --left M2` 提交 → status=FAILED 无 asset；同法镜6 仅 `--left <关键帧>` → COMPLETE。老版22镜当初用同组合成功，疑服务端回归或参考数上限变化。**当前修复前，双人镜先只挂关键帧跑通运动验证**（损失锁脸精度，待诊断母板组合）。单母板/双母板不带关键帧未测，需验证。
+- ⚠️ **视频多参考必须用 `referModel=referToVideo`（全能参考）**，不要用 `imageToVideo`（单图模式）硬塞多参考——后者配 3 参考实测稳定 FAILED 且无报错细节（2026-10-19，镜2/8 三连挂）。本片跑通的正式参数：`model=PIXDANCE_2_5` + `referModel=referToVideo` + `resolution=480P` + `aspectRatio=adaptive` + `includeAudio=true`，上游挂 关键帧+各角色母板+场景图（镜2 实测 4 参考成功）。
+- **分工铁律：AI 只负责铺节点/连线/入参/提示词，生成一律由用户在画布点击**——`node create` 带 `--run` 会直接烧积分触发生成，未经用户明确要求禁止使用（2026-10-19 越权教训）。
 
 ### 纪律 3：保留原声
 - Seedance `--include-audio` 生成的原声（环境音+配乐）**保留**，合并用 `-f concat -c copy`
@@ -178,7 +179,7 @@ ffmpeg -y -f concat -safe 0 -i list.txt -c copy merged.mp4
 | 改位置/名字不生效 | `-u position.x=` 进错字段 | metaData 是 JSON 字符串，解析原值改 label/position 再整体回写（否则抹掉 assetUuid） |
 | 子账号 | 看不到画布/报权限错 | 画布挂主账号项目，浏览器切主账号登录看 |
 | 删节点残留成品图 | defaultAsset/generationTask 是只读清不掉 | 删节点重建（canvas batch delete + create + update 下游连线） |
-| `node create` 只建不生成 | 节点 status=null 永远无 asset | 必须加 **`--run --wait`** 才触发生成批次（或建完 `node update --run`）；缺它就只是个空节点 |
+| `node create` 只建不生成 | 节点 status=null 永远无 asset | 带上 `--run --wait` 可触发生成批次——但**铺节点阶段禁用**，生成由用户点击（见纪律2 分工铁律） |
 | 运动能量验收 | 肉眼判断"动没动"不客观 | ffmpeg 抽帧 `-vf fps=4,scale=320:180 -pix_fmt rgb24 -f rawvideo`，算相邻帧均差；老版 6-15、新版 19-26 即"活了" |
 
 ## 故障案例库（全部来自实战翻车，跑前必读自查）
@@ -222,7 +223,7 @@ ffmpeg -y -f concat -safe 0 -i list.txt -c copy merged.mp4
 - **根因**：单元素"玉牌变红""老者宣布"不触发，但"**道袍收回+人物身份变化+权威宣判**"三元素叠加疑似 IP 桥段。
 - **对策**：**prompt 拆分动作元素**——每镜只描述一个明确动作事件（"他掰开捕兽夹"），不要"翻卷脱离+变红+宣布"三连发；保留**戏剧核心**（淘汰+转身+低头）去掉**表达细节**（翻卷脱离）。
 
-### 案例 9：关键帧+双母板三参考当前服务端失败（2026-10-19）
-- **症状**：镜2/8 视频节点 `node create -t GENERATE_VIDEO --left <关键帧> --left M1 --left M2` → status=FAILED、defaultAsset=null；同参数镜6 仅 `--left <关键帧>`（无母板）→ COMPLETE。
-- **根因**：疑服务端对"单图关键帧+2 张人物形象参考"的三参考组合做了限制/回归。本片老版 22 镜当初用同组合成功，故非历史常态，属近期变化。
-- **对策**：①先仅挂关键帧跑通运动验证（损失锁脸精度，待诊断）；②诊断路径：分别测"仅双母板""仅关键帧+单母板"确认是总数上限还是母板类型问题；③若确为上限，双人镜改"关键帧(构图)+1 母板(主角为锚)"，另一角色靠关键帧画面锁；④`node create` 务必带 `--run --wait`，否则只建空节点。
+### 案例 9：referModel 用错 → 三参考视频稳定失败（2026-10-19）
+- **症状**：镜2/8 视频节点挂 3 参考（关键帧+双母板）用 `referModel=imageToVideo` 提交 → status=FAILED、defaultAsset=null、无报错细节；同法镜6 仅 1 参考 → COMPLETE。
+- **根因**：**调用方式错误，不是服务端问题**。`imageToVideo` 是单图模式，塞 3 张参考图会被拒。正确做法 = `referModel=referToVideo`（全能参考模式）。本片 v4 跑通的 22 镜全部是 `referToVideo` + `PIXDANCE_2_5` + `adaptive` + 4 参考（关键帧+男主母板+玩伴母板+场景图）。
+- **教训**：①复现/重跑前先**抓一个已成功节点的 params 原样照抄**，不要凭记忆改参数；②`node create --run` 会直接触发生成烧积分——**铺节点阶段禁用 `--run`**，生成由用户在画布点。
